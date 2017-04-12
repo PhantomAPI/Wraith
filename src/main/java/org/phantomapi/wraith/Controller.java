@@ -1,0 +1,232 @@
+package org.phantomapi.wraith;
+
+public abstract class Controller implements Controllable
+{
+	protected Controllable parent;
+	protected GList<Controllable> children;
+	protected String name;
+	protected boolean active;
+	protected boolean root;
+	protected boolean ticked;
+	protected double tickRate;
+	protected TickHandler tickHandle;
+	protected Task task;
+	
+	public Controller(Controllable parent)
+	{
+		this.parent = parent;
+		this.children = new GList<Controllable>();
+		this.name = getClass().getSimpleName();
+		this.active = false;
+		this.root = parent == null;
+		ticked = false;
+		tickRate = 0;
+		tickHandle = TickHandler.SYNCED;
+		preStart();
+	}
+	
+	private void preStart()
+	{
+		if(findAutoRegister() && !isRoot())
+		{
+			parent.register(this);
+		}
+		
+		if(findTicked())
+		{
+			ticked = true;
+			tickRate = findTickValue();
+			tickHandle = findTickHandle();
+		}
+	}
+	
+	private boolean findTicked()
+	{
+		return getClass().isAnnotationPresent(Ticked.class);
+	}
+	
+	private double findTickValue()
+	{
+		if(ticked)
+		{
+			return getClass().getAnnotationsByType(Ticked.class)[0].value();
+		}
+		
+		return 0;
+	}
+	
+	private TickHandler findTickHandle()
+	{
+		if(getClass().isAnnotationPresent(TickHandle.class))
+		{
+			return getClass().getAnnotationsByType(TickHandle.class)[0].value();
+		}
+		
+		return TickHandler.SYNCED;
+	}
+	
+	private boolean findAutoRegister()
+	{
+		if(getClass().isAnnotationPresent(Registrar.class))
+		{
+			RegistrarType rt = getClass().getAnnotationsByType(Registrar.class)[0].value();
+			
+			return rt.equals(RegistrarType.AUTO);
+		}
+		
+		return true;
+	}
+	
+	private void activate()
+	{
+		if(isTicked())
+		{
+			switch(tickHandle)
+			{
+				case REALTIME:
+					task = new Task(0)
+					{
+						@Override
+						public void run()
+						{
+							long ns = M.ns();
+							long lastTime = 0;
+							
+							while(M.ns() - ns < (tickRate * 1000000) - lastTime)
+							{
+								Timer t = new Timer();
+								t.start();
+								tick();
+								t.stop();
+								lastTime = t.getTime();
+							}
+						}
+					};
+				case SYNCED:
+					task = new Task((int) tickRate)
+					{
+						@Override
+						public void run()
+						{
+							tick();
+						}
+					};
+				default:
+					break;
+			}
+		}
+	}
+	
+	private void deactivate()
+	{
+		if(isTicked() && task != null)
+		{
+			task.cancel();
+		}
+	}
+	
+	@Override
+	public void tick()
+	{
+		if(isActive() && isTicked())
+		{
+			
+		}
+	}
+	
+	@Override
+	public void start()
+	{
+		if(!isActive())
+		{
+			for(Controllable i : getChildren())
+			{
+				i.start();
+			}
+			
+			onStart();
+			activate();
+			active = true;
+		}
+	}
+	
+	@Override
+	public void stop()
+	{
+		if(isActive())
+		{
+			deactivate();
+			
+			for(Controllable i : getChildren())
+			{
+				i.stop();
+			}
+			
+			onStop();
+			active = false;
+		}
+	}
+	
+	public void onTick()
+	{
+		
+	}
+	
+	public abstract void onStart();
+	
+	public abstract void onStop();
+	
+	@Override
+	public Controllable getParent()
+	{
+		return parent;
+	}
+	
+	@Override
+	public GList<Controllable> getChildren()
+	{
+		return children.copy();
+	}
+	
+	@Override
+	public String getName()
+	{
+		return name;
+	}
+	
+	@Override
+	public boolean isRoot()
+	{
+		return root;
+	}
+	
+	@Override
+	public boolean isActive()
+	{
+		return active;
+	}
+	
+	@Override
+	public void register(Controllable controllable)
+	{
+		children.add(controllable);
+	}
+	
+	@Override
+	public boolean isTicked()
+	{
+		return ticked;
+	}
+	
+	@Override
+	public double getTickRate()
+	{
+		return tickRate;
+	}
+	
+	@Override
+	public TickHandler getTickHandler()
+	{
+		return tickHandle;
+	}
+}

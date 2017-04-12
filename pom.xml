@@ -3,7 +3,7 @@
 	<modelVersion>4.0.0</modelVersion>
 	<groupId>org.phantomapi</groupId>
 	<artifactId>Wraith</artifactId>
-	<version>Q</version>
+	<version>Q1</version>
 	<name>Wraith</name>
 	<description>Wraith miniature library</description>
 	<properties>
